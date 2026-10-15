@@ -1,0 +1,417 @@
+{
+  "name": "Enterprise ICP Qualifier & Research Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "icp-qualifier",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "3664c86f-b877-4a9d-bc28-dfbd1deee37a",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        112
+      ],
+      "webhookId": "4dd85b72-936c-4570-8172-0490376df186"
+    },
+    {
+      "parameters": {
+        "url": "=https://{{ (($(\"Webhook\").item.json.body.domain || $(\"Webhook\").item.json.body.company_url) || \"\").replace(/^https?:\\/\\//, \"\").replace(/\\/.*$/, \"\") }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "f208a8e4-06b7-474d-9e92-c65ec45cf849",
+      "name": "Fetch Homepage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://{{ (($(\"Webhook\").item.json.body.domain || $(\"Webhook\").item.json.body.company_url) || \"\").replace(/^https?:\\/\\//, \"\").replace(/\\/.*$/, \"\") }}/about",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "9e911362-9964-4d21-a96e-eb9ff5bf50f9",
+      "name": "Fetch About Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ (($(\"Webhook\").item.json.body.domain || $(\"Webhook\").item.json.body.company_url) || \"\").replace(/^https?:\\/\\//, \"\").replace(/\\/.*$/, \"\") }} company news funding"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a7f9319b-d94b-4f15-91b1-a38e07d224a8",
+      "name": "Serper News Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        112
+      ],
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "QB2ybOXINgZEwfBE",
+          "name": "Serper API (Prince B)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze the following company and qualify it against our Enterprise ICP matrix.\n\nDomain: {{ (($(\"Webhook\").item.json.body.domain || $(\"Webhook\").item.json.body.company_url) || \"\").replace(/^https?:\\/\\//, \"\").replace(/\\/.*$/, \"\") }}\n\nHomepage content (truncated):\n{{ String($(\"Fetch Homepage\").item.json.data || \"\").replace(/<[^>]+>/g, \" \").replace(/\\s+/g, \" \").slice(0, 6000) }}\n\nAbout page content (truncated):\n{{ String($(\"Fetch About Page\").item.json.data || \"\").replace(/<[^>]+>/g, \" \").replace(/\\s+/g, \" \").slice(0, 4000) }}\n\nLatest news & funding search results (JSON, truncated):\n{{ JSON.stringify($(\"Serper News Search\").item.json).slice(0, 4000) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an autonomous Enterprise ICP Qualification & Research Agent for a B2B sales team.\nUsing the scraped website content and the news/funding search results provided:\n1. Determine the company business model, approximate employee count, and likely pain points.\n2. Score the company against our Enterprise ICP matrix from 1 to 20 (20 = perfect fit).\n   Consider: enterprise readiness, company size, industry fit, budget signals, and growth/funding momentum.\n3. Assign a Tier: \"Tier 1\" (score 15-20, prioritize), \"Tier 2\" (score 8-14, nurture), \"Tier 3\" (score 1-7, deprioritize).\n4. Craft a concise, specific outbound pitch angle tailored to their likely pain points.\nBase every conclusion strictly on the supplied data. If a data point is unknown, make a reasonable, clearly-hedged estimate.\nReturn ONLY the structured object matching the required schema."
+        }
+      },
+      "id": "0288efbe-ba85-4b74-a45c-db2be6bbce20",
+      "name": "ICP Qualifier Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        928,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "2501e399-35a7-4d87-a9c1-c5e03b4ce9ff",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        944,
+        336
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "Kj9XVvQnCH0t7BLq",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"domain\": \"stripe.com\",\n  \"company_name\": \"Stripe\",\n  \"business_model\": \"B2B payments infrastructure / SaaS\",\n  \"employee_count\": \"5000+\",\n  \"icp_score\": 18,\n  \"tier\": \"Tier 1\",\n  \"pain_points\": [\n    \"Scaling payment operations across regions\",\n    \"Reducing fraud and chargebacks\"\n  ],\n  \"outbound_pitch_angle\": \"Position our solution as a way to reduce operational overhead for their enterprise finance teams.\",\n  \"recent_news\": \"Raised a new funding round; expanding enterprise product suite.\",\n  \"funding\": \"Late-stage / well funded\"\n}"
+      },
+      "id": "36b438f5-35b0-44cc-9b2e-9695f92baf19",
+      "name": "ICP Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1104,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1_NV5VC3Xan3Pj5gEnDVmROEDT6gTlkEJbnnQ1O9A7Rk",
+          "mode": "list",
+          "cachedResultName": "Data Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1_NV5VC3Xan3Pj5gEnDVmROEDT6gTlkEJbnnQ1O9A7Rk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "analyzed_at": "={{ $now.toISO() }}",
+            "domain": "={{ $json.output.domain }}",
+            "company_name": "={{ $json.output.company_name }}",
+            "business_model": "={{ $json.output.business_model }}",
+            "employee_count": "={{ $json.output.employee_count }}",
+            "icp_score": "={{ $json.output.icp_score }}",
+            "tier": "={{ $json.output.tier }}",
+            "pain_points": "={{ $json.output.pain_points.join(\"; \") }}",
+            "outbound_pitch_angle": "={{ $json.output.outbound_pitch_angle }}",
+            "recent_news": "={{ $json.output.recent_news }}",
+            "funding": "={{ $json.output.funding }}"
+          },
+          "schema": [
+            {
+              "id": "analyzed_at",
+              "displayName": "analyzed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "domain",
+              "displayName": "domain",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "business_model",
+              "displayName": "business_model",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "employee_count",
+              "displayName": "employee_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "icp_score",
+              "displayName": "icp_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tier",
+              "displayName": "tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pain_points",
+              "displayName": "pain_points",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "outbound_pitch_angle",
+              "displayName": "outbound_pitch_angle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "recent_news",
+              "displayName": "recent_news",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "funding",
+              "displayName": "funding",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "577cfc05-6bdc-4bc8-ae7a-3fc9fc365362",
+      "name": "Append to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1280,
+        112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "WWBZab5JHcEd5tBa",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch Homepage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Homepage": {
+      "main": [
+        [
+          {
+            "node": "Fetch About Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch About Page": {
+      "main": [
+        [
+          {
+            "node": "Serper News Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Serper News Search": {
+      "main": [
+        [
+          {
+            "node": "ICP Qualifier Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ICP Qualifier Agent": {
+      "main": [
+        [
+          {
+            "node": "Append to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "ICP Qualifier Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ICP Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "ICP Qualifier Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "acdfd714-6b09-4ca5-ad09-dff5ddbc3631",
+  "meta": {
+    "instanceId": "5f58ef151cd0f075da3e9df352c3c1228b589eb0d1ff6e8f0f308283d8dddaf0"
+  },
+  "nodeGroups": [
+    {
+      "id": "e2150a15-d1d2-4b33-9c98-10b382cb8115",
+      "name": "Ingest & Research",
+      "nodeIds": [
+        "f208a8e4-06b7-474d-9e92-c65ec45cf849",
+        "9e911362-9964-4d21-a96e-eb9ff5bf50f9",
+        "a7f9319b-d94b-4f15-91b1-a38e07d224a8"
+      ],
+      "description": "Scrape the company homepage and /about page, then fetch latest news & funding via Serper."
+    },
+    {
+      "id": "e6594273-ad7a-4bc6-b7ec-6b290049d8df",
+      "name": "Qualify & Store",
+      "nodeIds": [
+        "0288efbe-ba85-4b74-a45c-db2be6bbce20",
+        "2501e399-35a7-4d87-a9c1-c5e03b4ce9ff",
+        "36b438f5-35b0-44cc-9b2e-9695f92baf19",
+        "577cfc05-6bdc-4bc8-ae7a-3fc9fc365362"
+      ],
+      "description": "AI Agent scores the company against the Enterprise ICP matrix and appends the structured result to Google Sheets."
+    }
+  ],
+  "id": "Ws2Uo4nHzE6n8tsm",
+  "tags": []
+}
